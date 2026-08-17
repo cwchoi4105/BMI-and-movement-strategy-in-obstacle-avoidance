@@ -1,0 +1,184 @@
+---
+title: "Mixed effect model of the Virtual Obstacle Program"
+output:
+  html_document:
+    df_print: paged
+  PDF_notebook: default
+  pdf_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+---
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+### Introduction
+Obesity poses unique challenges for individuals’ static and dynamic stability. Compared to individuals with normal body mass index (BMI), individuals with obesity use different movement strategies such as increasing step width or hip flexion when walking or crossing obstacles, which often lead to falls and injuries.These strategies may be linked to postural instability or motor planning dysfunction (MPD) that can result in slowed information processing. Studies have investigated movement strategies in standing, but strategies in sitting have not been well documented. The purpose of this study was to explore effects of BMI on (1) movement strategy differences and (2) amount of leg movement during virtual obstacle crossing in sitting position. We hypothesize that the strategy to avoid the obstacle may mediate the relationship between BMI and the amount of leg movement during the Virtual Obstacle Avoidance Program.
+
+### Method
+Twenty-six participants were in this study: Individuals with Obesity (n=12; Female=6; mean age=29 years ±10; BMI=35.5 kg/m2 ±7.5) and Individuals with Normal BMI (n=14; Female=9; mean age=26 years ±5; BMI=21.6 kg/m2 ±2.3).
+The Virtual Obstacle Avoidance Program is the exercise game (exergame) using Inertial Measurement Units (IMU)s. Participants performed virtual obstacle crossing tasks, and IMUs were attached to their trunk, bilateral thighs, and bilateral shanks to measure leg motion.Participants were seated in front of the computer with the screen at eye level. On the screen, participants were cued to move a cursor from a home position to a target by moving their leg.
+For some trials, an obstacle will appear, forcing participants to perform hip adduction or hip abduction to reach the target without obstacle_hit. The timing of the presentation of the obstacle varied to test how new information is integrated into the sensorimotor system. For example, participants were required to avoid obstacles in 5 different conditions including: No Obstacle appears (Condition 0), appears prior to cue (Condition 1), Obstacle appears with cue (Condition 2), Obstacle appears with movement onset (Condition 3), and Obstacle appears at 20% of movement amplitude (Condition 4). Participants were given a “practice period” where they are given instructions and given practice trials to familiarize themselves with the movement patterns required to complete the task. The main task was consist of 5 block with 40 trials, total 200 trials. Total leg movement from Home to Target (TM) and Maximal Distance from midline (MD) while each trial, were calculated with the 2D distance between starting position (Home) and final position (Target) of a Cursor. As motor control symmetry was assumed, participants used their right leg only.  Mixed effect model was conducted to examine preferential strategy (Hip adduction or abduction) and TM and MD differed due to BMI and condition. We performed mediation analyses to investigate whether the strategy participants chose to avoid the obstacle mediate the relationship between BMI and TM or MD.
+---
+### Preparing the data
+```{r}
+library (nlme)
+library (lme4)
+library(lmerTest)
+library(mediation)
+library(car)
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(ggcorrplot)
+library(ggplot2)
+library(tidyr)
+library(corrplot)
+library(car)
+library(lme4)
+library(caret)
+library(Metrics)
+library(mgcv)
+library(brms)
+library(broom)
+library(glmnet)
+library(MuMIn)
+data <- read.csv('All_data_S.csv')
+data.new = data
+data.new$condition = as.factor(data.new$condition)
+
+attach(data)
+# Fit the binomial GLMM
+# Completion(Obstacle_hit or abort) = 1 (Fail) , 0 (Success)
+# Obstacle_hit = 1,  No_Obstacle_hit=0
+# abort = 1, No_abort = 0
+```
+We first excluded the obstacle hit trials which a participant fail to avoid obstacle. Then we excluded the abort trials which a participant fail to complete the trials in 20 seconds.
+
+
+```{r}
+Best.model <- glmer(Completion~ BMI + condition  + (1 | subject), 
+                data = data.new, family = binomial(link = 'logit'))
+summary(Best.model)
+
+Best.model1 <- glmer(obst_hit~ BMI +  condition  + (1 | subject), 
+                    data = data.new, family = binomial(link = 'logit'))
+summary(Best.model1)
+
+Best.model2<- glmer(abort~ BMI +  condition + (1 | subject), 
+                     data = data.new, family = binomial(link = 'logit'))
+summary(Best.model2)
+```
+
+```
+### Result1
+BMI shows a significant effect on obstacle_hit and abort as well as Completion including both obstacle_hit and abort. We further investigate TD using success trials (Completion = 0)
+
+```{r}
+Best.model8 <- glmer(Strategy ~ BMI + age + factor(condition) + (1 | subject),
+                     data = subset(data, Completion == 0 & condition %in% c(1, 2, 3, 4)),
+                     family = binomial(link = 'logit'),
+                     control = glmerControl(optimizer = "bobyqa"))
+
+# Get the summary of the model
+summary_model <- summary(Best.model8)
+
+# Extract coefficients and their standard errors
+coefficients <- summary_model$coefficients[, "Estimate"]
+standard_errors <- summary_model$coefficients[, "Std. Error"]
+
+# Calculate odds ratios and their 95% confidence intervals
+odds_ratios <- exp(coefficients)
+ci_lower <- exp(coefficients - 1.96 * standard_errors)
+ci_upper <- exp(coefficients + 1.96 * standard_errors)
+
+# Combine coefficients, odds ratios, and confidence intervals into a data frame
+odds_ratio_table <- data.frame(coef = coefficients,
+                               odds_ratio = odds_ratios,
+                               ci_lower = ci_lower,
+                               ci_upper = ci_upper)
+
+
+# Print the table
+print(odds_ratio_table)
+print(summary_model)
+```
+```
+
+```{r}
+Best.model4.as <- lmer(TLM ~ BMI + factor(condition) + age + (1 | subject)
+                   , data = subset(data, Completion == 0 
+                                   & condition %in% c(1, 2, 3, 4)))
+summary(Best.model4.as)
+```
+```{r}
+Best.model5.as <- lmer(MDD ~ BMI + factor(condition) + age + (1 | subject)
+                   , data = subset(data, Completion == 0 
+                                   & condition %in% c(1, 2, 3, 4)))
+summary(Best.model5.as)
+```
+
+### Result2
+Higher BMI was associated with more hip adduction strategy. BMI shows a significant effect on TLD, but there was no group difference in MDD (Completion = 0). We further investigate Total leg movement using trials including condition(1,2,3,4) which are obstacle avoidance tasks in different timing (Completion = 0 & condition %in% c(1, 2, 3, 4)).
+
+```
+
+```{r}
+library(lme4)
+library(emmeans)
+
+
+m <- lmer(
+  TLM ~ BMI + factor(condition) + age + (1 | subject),
+  data = subset(data, Completion == 0 & condition %in% 1:4)
+)
+
+
+emm <- emmeans(m, ~ condition)
+
+
+emm_result <- as.data.frame(
+  summary(emm, infer = TRUE)
+)
+
+num_cols <- sapply(emm_result, is.numeric)
+emm_result[num_cols] <- round(emm_result[num_cols], 3)
+
+print(emm_result)
+
+
+pair_result <- as.data.frame(
+  pairs(emm, adjust = "tukey")
+)
+
+num_cols <- sapply(pair_result, is.numeric)
+pair_result[num_cols] <- round(pair_result[num_cols], 3)
+
+print(pair_result)
+
+
+pair_ci <- as.data.frame(
+  confint(pairs(emm, adjust = "tukey"))
+)
+
+num_cols <- sapply(pair_ci, is.numeric)
+pair_ci[num_cols] <- round(pair_ci[num_cols], 3)
+
+print(pair_ci)
+```
+
+```
+### Result3
+Based on post hoc analyses, TLM was significantly greater in the two highest-difficulty conditions than in the lower-difficulty conditions. Conditions 1 and 2 did not differ significantly (p = 0.093).
+
+
+```
+### Discussion
+BMI impacts on a different hip strategy in a seated position and increased TLM. This strategy might be attributed to decreased dynamic sitting balance in individuals with high BMI. Our results suggest that virtual tasks can be used to reveal underlying impaired motor control in individuals with obesity or high BMI. These findings may present avenues for targeted interventions to prevent falls and injuries in people with obesity.
+
